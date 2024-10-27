@@ -21,7 +21,8 @@ This project provides Java classes for encrypting and decrypting files using AES
 ### 1. Compile the Java files
 
 ```bash
-javac Encrypt.java Decrypt.java
+javac Encrypt.java
+javac Decrypt.java
 ```
 
 ### 2. Run the Encryption
