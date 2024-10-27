@@ -18,6 +18,11 @@ This project provides Java classes for encrypting and decrypting files using AES
 
 ## Usage
 
+### 0. Jar File Download
+<a href="https://github.com/Divings/Java-AES/releases/latest
+">releases-latest<a>
+
+
 ### 1. Compile the Java files
 
 ```bash
