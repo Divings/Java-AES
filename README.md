@@ -37,7 +37,7 @@ java Encrypt
 Use `Decrypt` to decrypt a file by specifying the encrypted file path and the decryption key.
 
 ```bash
-java Decrypt <inputFile> <outputFile> <decryptionKey>
+java Decrypt 
 ```
 
 ## Code Details
