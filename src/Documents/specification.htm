@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypt.java と Decrypt.java 仕様書とコメント</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        h1, h2, h3 { color: #333; }
+        code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
+        pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow: auto; }
+    </style>
+</head>
+<body>
+
+    <h1>Encrypt.java と Decrypt.java 仕様書とコードコメント</h1>
+
+    <h2>仕様書</h2>
+
+    <h3>Encrypt.java</h3>
+    <ul>
+        <li><strong>概要</strong>: ファイルをAES暗号化方式（CBCモードとPKCS5Padding）で暗号化するプログラムです。</li>
+        <li><strong>メイン機能</strong>:
+            <ul>
+                <li>ユーザーから入力されたパスフレーズを32バイト（256ビット）のAES鍵にパディングして使用。</li>
+                <li>ファイルを暗号化し、暗号化データの前にIV（初期ベクトル）と鍵パディングを付与。</li>
+                <li>暗号化済みファイルは元のファイル名に「.enc」拡張子を付けて保存。</li>
+            </ul>
+        </li>
+        <li><strong>入力</strong>: ユーザーが入力するパスフレーズと暗号化対象ファイルのパス。</li>
+        <li><strong>出力</strong>: 暗号化されたファイル（拡張子: .enc）。</li>
+    </ul>
+
+    <h3>Decrypt.java</h3>
+    <ul>
+        <li><strong>概要</strong>: Encrypt.javaで暗号化されたファイルを復号するプログラムです。</li>
+        <li><strong>メイン機能</strong>:
+            <ul>
+                <li>暗号化ファイルの先頭からIVと鍵パディングを抽出し、ユーザーのパスフレーズに鍵パディングを追加して完全なAES鍵を生成。</li>
+                <li>暗号化データを復号し、元のファイルとして保存。</li>
+            </ul>
+        </li>
+        <li><strong>入力</strong>: ユーザーが入力するパスフレーズと復号対象ファイルのパス（拡張子 .enc）。</li>
+        <li><strong>出力</strong>: 復号された元ファイル。</li>
+    </ul>
+
+    <h2>コード内コメント</h2>
+
+    <h3>Encrypt.java</h3>
+    <pre><code>
+public class Encrypt {
+    private static final int KEY_SIZE = 32; // 256ビットの鍵サイズ（AES-256）
+    private static final int BLOCK_SIZE = 16; // AESのブロックサイズ（128ビット）
+
+    // 入力された鍵を256ビットにパディング
+    public static byte[] padKey(byte[] key) {
+        // 鍵がすでに十分な長さの場合は切り捨て
+        if (key.length >= KEY_SIZE) {
+            return Arrays.copyOf(key, KEY_SIZE);
+        }
+        // 鍵が短い場合はランダムなバイトでパディング
+        byte[] paddedKey = new byte[KEY_SIZE];
+        System.arraycopy(key, 0, paddedKey, 0, key.length);
+        SecureRandom random = new SecureRandom();
+        byte[] padding = new byte[KEY_SIZE - key.length];
+        random.nextBytes(padding);
+        System.arraycopy(padding, 0, paddedKey, key.length, padding.length);
+        return paddedKey;
+    }
+
+    // 指定されたファイルを暗号化
+    public static void encryptFile(String inputFile, byte[] key) throws Exception {
+        byte[] paddedKey = padKey(key);
+        byte[] iv = new byte[BLOCK_SIZE];
+        SecureRandom random = new SecureRandom();
+        random.nextBytes(iv); // 初期ベクトルをランダムに生成
+
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        SecretKeySpec secretKey = new SecretKeySpec(paddedKey, "AES");
+        IvParameterSpec ivParams = new IvParameterSpec(iv);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParams);
+
+        // ファイルを読み込み暗号化
+        FileInputStream fis = new FileInputStream(inputFile);
+        byte[] fileData = new byte[(int) new File(inputFile).length()];
+        fis.read(fileData);
+        fis.close();
+
+        byte[] encryptedData = cipher.doFinal(fileData);
+
+        // 暗号化データをファイルに書き込み
+        try (FileOutputStream fos = new FileOutputStream(inputFile + ".enc")) {
+            fos.write(iv); // IVを先頭に書き込む
+            fos.write(Arrays.copyOfRange(paddedKey, key.length, KEY_SIZE)); // 鍵のパディングを書き込む
+            fos.write(encryptedData); // 暗号化データを書き込む
+        }
+
+        System.out.println("Encryption completed. Encrypted file saved as: " + inputFile + ".enc");
+    }
+
+    public static void main(String[] args) throws Exception {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter the encryption key: ");
+        byte[] key = scanner.nextLine().getBytes(); // 鍵を取得
+        System.out.print("Enter the file path to encrypt: ");
+        String inputFile = scanner.nextLine(); // ファイルパスを取得
+        encryptFile(inputFile, key); // 暗号化関数を呼び出し
+        scanner.close();
+    }
+}
+    </code></pre>
+
+    <h3>Decrypt.java</h3>
+    <pre><code>
+public class Decrypt {
+    private static final int KEY_SIZE = 32; // 256ビットの鍵サイズ（AES-256）
+    private static final int BLOCK_SIZE = 16; // AESのブロックサイズ（128ビット）
+
+    // 鍵とパディングを結合して完全な鍵を生成
+    public static byte[] padKey(byte[] key, byte[] padding) {
+        byte[] fullKey = new byte[KEY_SIZE];
+        System.arraycopy(key, 0, fullKey, 0, key.length);
+        System.arraycopy(padding, 0, fullKey, key.length, padding.length);
+        return fullKey;
+    }
+
+    // 指定されたファイルを復号
+    public static void decryptFile(String inputFile, byte[] key) throws Exception {
+        try (FileInputStream fis = new FileInputStream(inputFile)) {
+            byte[] iv = new byte[BLOCK_SIZE];
+            fis.read(iv); // IVをファイルから読み込み
+
+            int paddingSize = KEY_SIZE - key.length;
+            byte[] padding = new byte[paddingSize];
+            fis.read(padding); // 鍵のパディングを読み込み
+
+            byte[] fullKey = padKey(key, padding);
+            SecretKeySpec secretKey = new SecretKeySpec(fullKey, "AES");
+            IvParameterSpec ivParams = new IvParameterSpec(iv);
+
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivParams);
+
+            byte[] encryptedData = new byte[(int) (new File(inputFile).length() - BLOCK_SIZE - paddingSize)];
+            fis.read(encryptedData);
+
+            byte[] decryptedData = cipher.doFinal(encryptedData);
+
+            // 復号されたデータを元のファイルとして保存
+            String outputFile = inputFile.replace(".enc", "");
+            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                fos.write(decryptedData);
+            }
+
+            System.out.println("Decryption completed. Decrypted file saved as: " + outputFile);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter the decryption key: ");
+        byte[] key = scanner.nextLine().getBytes(); // 鍵を取得
+        System.out.print("Enter the file path to decrypt: ");
+        String inputFile = scanner.nextLine(); // ファイルパスを取得
+        decryptFile(inputFile, key); // 復号関数を呼び出し
+        scanner.close();
+    }
+}
+    </code></pre>
+
+</body>
+</html>
